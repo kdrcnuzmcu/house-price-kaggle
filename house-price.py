@@ -177,6 +177,9 @@ print("RMSE:", np.sqrt(mean_squared_error(y_train, y_pred)))
 y_pred_test = CB_model.predict(X_test)
 y_pred_test = pd.Series(y_pred_test)
 
+
+
+
 sample_submission.loc[:, "SalePrice"] = y_pred_test
 sample_submission.to_csv("pred4.csv", index=False)
 
