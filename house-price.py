@@ -1,10 +1,19 @@
 import pandas as pd
 import numpy as np
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+from qbstyles import mpl_style
+
 from catboost import CatBoostRegressor
+from lightgbm import LGBMRegressor
+
 from sklearn.preprocessing import RobustScaler
+
 from sklearn.metrics import mean_absolute_percentage_error
 from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import mean_squared_error
+
 from typing import Optional
 
 pd.set_option("display.max_columns", None)
@@ -87,6 +96,16 @@ def on_isleme(col, navalue=None, rare=None, scale=None):
         cats = temp[temp["Ratio"] < rare][col]
         train.loc[train[col].isin(cats), col] = "RareCat"
         test.loc[test[col].isin(cats), col] = "RareCat"
+
+def plot_importance(model, features, num = 3):
+    mpl_style(dark=True)
+    feature_imp = pd.DataFrame({"Value": model.feature_importances_, "Feature": features.columns})
+    plt.figure(figsize=(10, 10))
+    sns.set(font_scale=1)
+    sns.barplot(x="Value", y="Feature", data=feature_imp.sort_values(by="Value", ascending=False)[0:num])
+    plt.title("Features")
+    plt.tight_layout()
+    plt.show()
 
 train = train_.copy()
 test = test_.copy()
@@ -174,11 +193,18 @@ print("MAPE:", mean_absolute_percentage_error(y_train, y_pred))
 print("MAE:", mean_absolute_error(y_train, y_pred))
 print("RMSE:", np.sqrt(mean_squared_error(y_train, y_pred)))
 
+LGBM_model = LGBMRegressor()
+LGBM_model.fit(X_train, y_train)
+print("Train Score:", LGBM_model.score(X_train, y_train))
+y_pred = LGBM_model.predict(X_train)
+print("MAPE:", mean_absolute_percentage_error(y_train, y_pred))
+print("MAE:", mean_absolute_error(y_train, y_pred))
+print("RMSE:", np.sqrt(mean_squared_error(y_train, y_pred)))
+
+plot_importance(LGBM_model, X_train, num=65)
+
 y_pred_test = CB_model.predict(X_test)
 y_pred_test = pd.Series(y_pred_test)
-
-
-
 
 sample_submission.loc[:, "SalePrice"] = y_pred_test
 sample_submission.to_csv("pred4.csv", index=False)
