@@ -7,12 +7,15 @@ from qbstyles import mpl_style
 
 from catboost import CatBoostRegressor
 from lightgbm import LGBMRegressor
+from xgboost import XGBRegressor
 
 from sklearn.preprocessing import RobustScaler
 
 from sklearn.metrics import mean_absolute_percentage_error
 from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import mean_squared_error
+
+from sklearn.model_selection import train_test_split
 
 from typing import Optional
 
@@ -112,6 +115,8 @@ test = test_.copy()
 cat_cols, cat_but_car, num_cols = grab_col_names(train)
 RS = RobustScaler()
 
+train.head()
+
 on_isleme("MSSubClass", navalue=0, scale=RS) #MSSubClass
 on_isleme("MSZoning", "None", 0.08) #MSZoning
 on_isleme("LotFrontage", 0, scale=RS) #LotFrontage
@@ -182,6 +187,14 @@ X_train = pd.get_dummies(X_train, drop_first=True)
 X_test = pd.get_dummies(X_test, drop_first=True)
 y_train = train["SalePrice"]
 
+Xtrain, Xtest, ytrain, ytest = train_test_split(X_train, y_train, test_size=0.2, random_state=42)
+
+X_train = train[["LotArea", "GrLivArea"]]
+X_test = train["GrLivArea"]
+#X_train = pd.get_dummies(X_train, drop_first=True)
+#X_test = pd.get_dummies(X_test, drop_first=True)
+y_train = train["SalePrice"]
+
 X_train.shape
 X_test.shape
 
@@ -201,13 +214,74 @@ print("MAPE:", mean_absolute_percentage_error(y_train, y_pred))
 print("MAE:", mean_absolute_error(y_train, y_pred))
 print("RMSE:", np.sqrt(mean_squared_error(y_train, y_pred)))
 
-plot_importance(LGBM_model, X_train, num=65)
+XGB_model = XGBRegressor()
+XGB_model.fit(X_train, y_train)
+print("Train Score:", XGB_model.score(X_train, y_train))
+y_pred = XGB_model.predict(X_train)
+print("MAPE:", mean_absolute_percentage_error(y_train, y_pred))
+print("MAE:", mean_absolute_error(y_train, y_pred))
+print("RMSE:", np.sqrt(mean_squared_error(y_train, y_pred)))
 
-y_pred_test = CB_model.predict(X_test)
+# Train-Test-Split
+Xtrain, Xtest, ytrain, ytest = train_test_split(X_train, y_train, test_size=0.2, random_state=42)
+
+CB_model = CatBoostRegressor(verbose=False)
+CB_model.fit(Xtrain, ytrain)
+print("Train Score:", CB_model.score(Xtrain, ytrain))
+y_pred = CB_model.predict(Xtrain)
+print("MAPE:", mean_absolute_percentage_error(ytrain, y_pred))
+print("MAE:", mean_absolute_error(ytrain, y_pred))
+print("RMSE:", np.sqrt(mean_squared_error(ytrain, y_pred)))
+print("### ### ###")
+y_pred = CB_model.predict(Xtest)
+print("MAPE:", mean_absolute_percentage_error(ytest, y_pred))
+print("MAE:", mean_absolute_error(ytest, y_pred))
+print("RMSE:", np.sqrt(mean_squared_error(ytest, y_pred)))
+
+LGBM_model = LGBMRegressor()
+LGBM_model.fit(Xtrain, ytrain)
+print("Train Score:", LGBM_model.score(Xtrain, ytrain))
+y_pred = LGBM_model.predict(Xtrain)
+print("MAPE:", mean_absolute_percentage_error(ytrain, y_pred))
+print("MAE:", mean_absolute_error(ytrain, y_pred))
+print("RMSE:", np.sqrt(mean_squared_error(ytrain, y_pred)))
+print("### ### ###")
+y_pred = LGBM_model.predict(Xtest)
+print("MAPE:", mean_absolute_percentage_error(ytest, y_pred))
+print("MAE:", mean_absolute_error(ytest, y_pred))
+print("RMSE:", np.sqrt(mean_squared_error(ytest, y_pred)))
+
+XGB_model = XGBRegressor()
+XGB_model.fit(Xtrain, ytrain)
+print("Train Score:", XGB_model.score(Xtrain, ytrain))
+y_pred = XGB_model.predict(Xtrain)
+print("MAPE:", mean_absolute_percentage_error(ytrain, y_pred))
+print("MAE:", mean_absolute_error(ytrain, y_pred))
+print("RMSE:", np.sqrt(mean_squared_error(ytrain, y_pred)))
+print("### ### ###")
+y_pred = XGB_model.predict(Xtest)
+print("MAPE:", mean_absolute_percentage_error(ytest, y_pred))
+print("MAE:", mean_absolute_error(ytest, y_pred))
+print("RMSE:", np.sqrt(mean_squared_error(ytest, y_pred)))
+
+plot_importance(CB_model, X_train, num=50)
+plot_importance(LGBM_model, X_train, num=50)
+plot_importance(XGB_model, X_train, num=50)
+
+sns.scatterplot(data=train, x="Id", y="SalePrice")
+sns.scatterplot(y_pred)
+
+
+
+X_train[["OverallQual", "ExterQual_RareCat", "GarageCars", "KitchenAbvGr", "GrLivArea"]].head()
+categorical_value_counts(train, "ExterQual", "SalePrice")
+
+
+y_pred_test = XGB_model.predict(X_test)
 y_pred_test = pd.Series(y_pred_test)
 
 sample_submission.loc[:, "SalePrice"] = y_pred_test
-sample_submission.to_csv("pred4.csv", index=False)
+sample_submission.to_csv("preds/pred5.csv", index=False)
 
 
 
