@@ -27,6 +27,7 @@ train_ = pd.read_csv("train.csv")
 test_ = pd.read_csv("test.csv")
 sample_submission = pd.read_csv("sample_submission.csv")
 
+#region Fonksiyonlar
 def grab_col_names(df, cat_th=10, car_th=20):
 
     # Categorical Columns
@@ -113,25 +114,29 @@ def plot_importance(model, features, num = 3):
     plt.show()
 
 def model_fit(estimator, X, y, tag="Train"):
-    from sklearn.metrics import mean_absolute_percentage_error
-    from sklearn.metrics import mean_absolute_error
-    from sklearn.metrics import mean_squared_error
     print("# * ~  -- * -- --{}-- -- * -- ~ * #".format(estimator.__class__.__name__))
     model = estimator.fit(X, y)
     print("Train Score:", model.score(X, y))
     y_pred = model.predict(X)
     print("# * ~  -- --{} Dataset-- -- ~ * #".format(tag))
-    print("MAPE:", mean_absolute_percentage_error(y, y_pred))
-    print("MAE:", mean_absolute_error(y, y_pred))
-    print("RMSE:", mean_squared_error(y, y_pred, squared=False))
+    metriks(y, y_pred)
+
+def metriks(y_true, y_pred):
+    from sklearn.metrics import mean_absolute_percentage_error
+    from sklearn.metrics import mean_absolute_error
+    from sklearn.metrics import mean_squared_error
+    print("MAPE:", mean_absolute_percentage_error(y_true, y_pred))
+    print("MAE:", mean_absolute_error(y_true, y_pred))
+    print("RMSE:", mean_squared_error(y_true, y_pred, squared=False))
+
+#endregion
 
 train = train_.copy()
 test = test_.copy()
 cat_cols, cat_but_car, num_cols = grab_col_names(train)
 RS = RobustScaler()
 
-train.head()
-
+#region Preprocessing
 on_isleme("MSSubClass", navalue=0, scale=RS) #MSSubClass
 on_isleme("MSZoning", "None", 0.08) #MSZoning
 on_isleme("LotFrontage", 0, scale=RS) #LotFrontage
@@ -201,15 +206,28 @@ X_test = train[cats]
 X_train = pd.get_dummies(X_train, drop_first=True)
 X_test = pd.get_dummies(X_test, drop_first=True)
 y_train = train["SalePrice"]
+#endregion
 
-X_train = train[["LotArea", "GrLivArea"]]
-X_test = train["GrLivArea"]
-#X_train = pd.get_dummies(X_train, drop_first=True)
-#X_test = pd.get_dummies(X_test, drop_first=True)
-y_train = train["SalePrice"]
+#region Preprocessing2
 
-X_train.shape
-X_test.shape
+#endregion
+
+#region EDA
+
+col = "LotFrontage"
+train_[col].head(10)
+train_[col].describe()
+print(train_[col].isnull().sum(), "/", train_.shape[0])
+
+col = "LotFrontage"
+train_[train_[col] < 80]["SalePrice"].mean()
+train_[train_[col] > 80]["SalePrice"].mean()
+
+
+
+
+
+#endregion
 
 print("# * ~ -- -- -- -- -- --{}-- -- -- -- -- -- ~ * #".format("CatBoost Raw Dataset"))
 CB_model = CatBoostRegressor(verbose=False)
@@ -239,39 +257,23 @@ model_fit(CB_model, Xtrain, ytrain)
 print("### ### ###")
 print("Train Score:", CB_model.score(Xtest, ytest))
 y_pred = CB_model.predict(Xtest)
-print("MAPE:", mean_absolute_percentage_error(ytest, y_pred))
-print("MAE:", mean_absolute_error(ytest, y_pred))
-print("RMSE:", np.sqrt(mean_squared_error(ytest, y_pred)))
+metriks(ytest, y_pred)
 
 print("# * ~ -- -- -- -- -- --{}-- -- -- -- -- -- ~ * #".format("LightGBM Train-Test-Split"))
 LGBM_model = LGBMRegressor()
-LGBM_model.fit(Xtrain, ytrain)
-print("Train Score:", LGBM_model.score(Xtrain, ytrain))
-y_pred = LGBM_model.predict(Xtrain)
-print("MAPE:", mean_absolute_percentage_error(ytrain, y_pred))
-print("MAE:", mean_absolute_error(ytrain, y_pred))
-print("RMSE:", np.sqrt(mean_squared_error(ytrain, y_pred)))
+model_fit(LGBM_model, Xtrain, ytrain)
 print("### ### ###")
 print("Train Score:", LGBM_model.score(Xtest, ytest))
 y_pred = LGBM_model.predict(Xtest)
-print("MAPE:", mean_absolute_percentage_error(ytest, y_pred))
-print("MAE:", mean_absolute_error(ytest, y_pred))
-print("RMSE:", np.sqrt(mean_squared_error(ytest, y_pred)))
+metriks(ytest, y_pred)
 
 print("# * ~ -- -- -- -- -- --{}-- -- -- -- -- -- ~ * #".format("XGBoost Train-Test-Split"))
 XGB_model = XGBRegressor()
-XGB_model.fit(Xtrain, ytrain)
-print("Train Score:", XGB_model.score(Xtrain, ytrain))
-y_pred = XGB_model.predict(Xtrain)
-print("MAPE:", mean_absolute_percentage_error(ytrain, y_pred))
-print("MAE:", mean_absolute_error(ytrain, y_pred))
-print("RMSE:", np.sqrt(mean_squared_error(ytrain, y_pred)))
+model_fit(XGB_model, Xtrain, ytrain)
 print("### ### ###")
 print("Train Score:", XGB_model.score(Xtest, ytest))
-y_pred = XGB_model.predict(Xtest)
-print("MAPE:", mean_absolute_percentage_error(ytest, y_pred))
-print("MAE:", mean_absolute_error(ytest, y_pred))
-print("RMSE:", np.sqrt(mean_squared_error(ytest, y_pred)))
+y_pred = LGBM_model.predict(Xtest)
+metriks(ytest, y_pred)
 
 # Train-Test-Split - Feature Importance Plot
 plot_importance(CB_model, Xtrain, num=25)
@@ -306,8 +308,7 @@ print("# * ~ -- -- -- -- -- --{}-- -- -- -- -- -- ~ * #".format("XGBoost Cross V
 XGB_model = XGBRegressor()
 print(np.mean(cross_val_score(XGB_model, Xtrain, ytrain, cv=5)))
 
-# Export Submission #
-
+## Export Submission ##
 # Raw Dataset
 y_pred_test = XGB_model.predict(X_test)
 y_pred_test = pd.Series(y_pred_test)
