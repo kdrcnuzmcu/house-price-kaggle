@@ -16,6 +16,7 @@ from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import mean_squared_error
 
 from sklearn.model_selection import train_test_split
+from sklearn.model_selection import cross_val_score
 
 from typing import Optional
 
@@ -103,12 +104,26 @@ def on_isleme(col, navalue=None, rare=None, scale=None):
 def plot_importance(model, features, num = 3):
     mpl_style(dark=True)
     feature_imp = pd.DataFrame({"Value": model.feature_importances_, "Feature": features.columns})
-    plt.figure(figsize=(10, 10))
+    plt.figure(num="{}".format(model.__class__.__name__), figsize=(10, 10))
     sns.set(font_scale=1)
     sns.barplot(x="Value", y="Feature", data=feature_imp.sort_values(by="Value", ascending=False)[0:num])
     plt.title("Features")
     plt.tight_layout()
+    plt.get_current_fig_manager()
     plt.show()
+
+def model_fit(estimator, X, y, tag="Train"):
+    from sklearn.metrics import mean_absolute_percentage_error
+    from sklearn.metrics import mean_absolute_error
+    from sklearn.metrics import mean_squared_error
+    print("# * ~  -- * -- --{}-- -- * -- ~ * #".format(estimator.__class__.__name__))
+    model = estimator.fit(X, y)
+    print("Train Score:", model.score(X, y))
+    y_pred = model.predict(X)
+    print("# * ~  -- --{} Dataset-- -- ~ * #".format(tag))
+    print("MAPE:", mean_absolute_percentage_error(y, y_pred))
+    print("MAE:", mean_absolute_error(y, y_pred))
+    print("RMSE:", mean_squared_error(y, y_pred, squared=False))
 
 train = train_.copy()
 test = test_.copy()
@@ -187,8 +202,6 @@ X_train = pd.get_dummies(X_train, drop_first=True)
 X_test = pd.get_dummies(X_test, drop_first=True)
 y_train = train["SalePrice"]
 
-Xtrain, Xtest, ytrain, ytest = train_test_split(X_train, y_train, test_size=0.2, random_state=42)
-
 X_train = train[["LotArea", "GrLivArea"]]
 X_test = train["GrLivArea"]
 #X_train = pd.get_dummies(X_train, drop_first=True)
@@ -198,46 +211,39 @@ y_train = train["SalePrice"]
 X_train.shape
 X_test.shape
 
+print("# * ~ -- -- -- -- -- --{}-- -- -- -- -- -- ~ * #".format("CatBoost Raw Dataset"))
 CB_model = CatBoostRegressor(verbose=False)
-CB_model.fit(X_train, y_train)
-print("Train Score:", CB_model.score(X_train, y_train))
-y_pred = CB_model.predict(X_train)
-print("MAPE:", mean_absolute_percentage_error(y_train, y_pred))
-print("MAE:", mean_absolute_error(y_train, y_pred))
-print("RMSE:", np.sqrt(mean_squared_error(y_train, y_pred)))
+model_fit(CB_model, X_train, y_train)
 
+print("# * ~ -- -- -- -- -- --{}-- -- -- -- -- -- ~ * #".format("LightGBM Raw Dataset"))
 LGBM_model = LGBMRegressor()
-LGBM_model.fit(X_train, y_train)
-print("Train Score:", LGBM_model.score(X_train, y_train))
-y_pred = LGBM_model.predict(X_train)
-print("MAPE:", mean_absolute_percentage_error(y_train, y_pred))
-print("MAE:", mean_absolute_error(y_train, y_pred))
-print("RMSE:", np.sqrt(mean_squared_error(y_train, y_pred)))
+model_fit(LGBM_model, X_train, y_train)
 
+print("# * ~ -- -- -- -- -- --{}-- -- -- -- -- -- ~ * #".format("XGBoost Raw Dataset"))
 XGB_model = XGBRegressor()
-XGB_model.fit(X_train, y_train)
-print("Train Score:", XGB_model.score(X_train, y_train))
-y_pred = XGB_model.predict(X_train)
-print("MAPE:", mean_absolute_percentage_error(y_train, y_pred))
-print("MAE:", mean_absolute_error(y_train, y_pred))
-print("RMSE:", np.sqrt(mean_squared_error(y_train, y_pred)))
+model_fit(XGB_model, X_train, y_train)
+
+# Raw Dataset - Feature Importance Plot
+plot_importance(CB_model, X_train, num=25)
+
+plot_importance(LGBM_model, X_train, num=25)
+
+plot_importance(XGB_model, X_train, num=25)
 
 # Train-Test-Split
 Xtrain, Xtest, ytrain, ytest = train_test_split(X_train, y_train, test_size=0.2, random_state=42)
 
+print("# * ~ -- -- -- -- -- --{}-- -- -- -- -- -- ~ * #".format("CatBoost Train-Test-Split"))
 CB_model = CatBoostRegressor(verbose=False)
-CB_model.fit(Xtrain, ytrain)
-print("Train Score:", CB_model.score(Xtrain, ytrain))
-y_pred = CB_model.predict(Xtrain)
-print("MAPE:", mean_absolute_percentage_error(ytrain, y_pred))
-print("MAE:", mean_absolute_error(ytrain, y_pred))
-print("RMSE:", np.sqrt(mean_squared_error(ytrain, y_pred)))
+model_fit(CB_model, Xtrain, ytrain)
 print("### ### ###")
+print("Train Score:", CB_model.score(Xtest, ytest))
 y_pred = CB_model.predict(Xtest)
 print("MAPE:", mean_absolute_percentage_error(ytest, y_pred))
 print("MAE:", mean_absolute_error(ytest, y_pred))
 print("RMSE:", np.sqrt(mean_squared_error(ytest, y_pred)))
 
+print("# * ~ -- -- -- -- -- --{}-- -- -- -- -- -- ~ * #".format("LightGBM Train-Test-Split"))
 LGBM_model = LGBMRegressor()
 LGBM_model.fit(Xtrain, ytrain)
 print("Train Score:", LGBM_model.score(Xtrain, ytrain))
@@ -246,11 +252,13 @@ print("MAPE:", mean_absolute_percentage_error(ytrain, y_pred))
 print("MAE:", mean_absolute_error(ytrain, y_pred))
 print("RMSE:", np.sqrt(mean_squared_error(ytrain, y_pred)))
 print("### ### ###")
+print("Train Score:", LGBM_model.score(Xtest, ytest))
 y_pred = LGBM_model.predict(Xtest)
 print("MAPE:", mean_absolute_percentage_error(ytest, y_pred))
 print("MAE:", mean_absolute_error(ytest, y_pred))
 print("RMSE:", np.sqrt(mean_squared_error(ytest, y_pred)))
 
+print("# * ~ -- -- -- -- -- --{}-- -- -- -- -- -- ~ * #".format("XGBoost Train-Test-Split"))
 XGB_model = XGBRegressor()
 XGB_model.fit(Xtrain, ytrain)
 print("Train Score:", XGB_model.score(Xtrain, ytrain))
@@ -259,25 +267,53 @@ print("MAPE:", mean_absolute_percentage_error(ytrain, y_pred))
 print("MAE:", mean_absolute_error(ytrain, y_pred))
 print("RMSE:", np.sqrt(mean_squared_error(ytrain, y_pred)))
 print("### ### ###")
+print("Train Score:", XGB_model.score(Xtest, ytest))
 y_pred = XGB_model.predict(Xtest)
 print("MAPE:", mean_absolute_percentage_error(ytest, y_pred))
 print("MAE:", mean_absolute_error(ytest, y_pred))
 print("RMSE:", np.sqrt(mean_squared_error(ytest, y_pred)))
 
-plot_importance(CB_model, X_train, num=50)
-plot_importance(LGBM_model, X_train, num=50)
-plot_importance(XGB_model, X_train, num=50)
+# Train-Test-Split - Feature Importance Plot
+plot_importance(CB_model, Xtrain, num=25)
 
-sns.scatterplot(data=train, x="Id", y="SalePrice")
-sns.scatterplot(y_pred)
+plot_importance(LGBM_model, Xtrain, num=25)
 
+plot_importance(XGB_model, Xtrain, num=25)
 
+# Cross Validation - Raw Dataset
+print("# * ~ -- -- -- -- -- --{}-- -- -- -- -- -- ~ * #".format("CatBoost Cross Validation"))
+CB_model = CatBoostRegressor(verbose=False)
+print(np.mean(cross_val_score(CB_model, X_train, y_train, cv=5)))
 
-X_train[["OverallQual", "ExterQual_RareCat", "GarageCars", "KitchenAbvGr", "GrLivArea"]].head()
-categorical_value_counts(train, "ExterQual", "SalePrice")
+print("# * ~ -- -- -- -- -- --{}-- -- -- -- -- -- ~ * #".format("LightGBM Cross Validation"))
+LGBM_model = LGBMRegressor()
+print(np.mean(cross_val_score(LGBM_model, X_train, y_train, cv=5)))
 
+print("# * ~ -- -- -- -- -- --{}-- -- -- -- -- -- ~ * #".format("XGBoost Cross Validation"))
+XGB_model = XGBRegressor()
+print(np.mean(cross_val_score(XGB_model, X_train, y_train, cv=5)))
 
+# Cross Validation - Train-Test-Split
+print("# * ~ -- -- -- -- -- --{}-- -- -- -- -- -- ~ * #".format("CatBoost Cross Validation"))
+CB_model = CatBoostRegressor(verbose=False)
+print(np.mean(cross_val_score(CB_model, Xtrain, ytrain, cv=5)))
+
+print("# * ~ -- -- -- -- -- --{}-- -- -- -- -- -- ~ * #".format("LightGBM Cross Validation"))
+LGBM_model = LGBMRegressor()
+print(np.mean(cross_val_score(LGBM_model, Xtrain, ytrain, cv=5)))
+
+print("# * ~ -- -- -- -- -- --{}-- -- -- -- -- -- ~ * #".format("XGBoost Cross Validation"))
+XGB_model = XGBRegressor()
+print(np.mean(cross_val_score(XGB_model, Xtrain, ytrain, cv=5)))
+
+# Export Submission #
+
+# Raw Dataset
 y_pred_test = XGB_model.predict(X_test)
+y_pred_test = pd.Series(y_pred_test)
+
+# Train-Test-Split
+y_pred_test = XGB_model.predict(Xtest)
 y_pred_test = pd.Series(y_pred_test)
 
 sample_submission.loc[:, "SalePrice"] = y_pred_test
