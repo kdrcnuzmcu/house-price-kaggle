@@ -98,7 +98,7 @@ def on_isleme(col, navalue=None, rare=None, scale=None):
         train[col] = train[col].fillna(navalue)
         test[col] = test[col].fillna(navalue)
         temp = categorical_value_counts(train, col, "SalePrice")
-        cats = temp[temp["Ratio"] < rare][col]
+        # cats = temp[temp["Ratio"] < rare][col]
         train.loc[train[col].isin(cats), col] = "RareCat"
         test.loc[test[col].isin(cats), col] = "RareCat"
 
@@ -214,7 +214,7 @@ y_train = train["SalePrice"]
 
 #region EDA
 
-col = "LotFrontage"
+col = "GrLivArea"
 train_[col].head(10)
 train_[col].describe()
 print(train_[col].isnull().sum(), "/", train_.shape[0])
@@ -223,12 +223,13 @@ col = "LotFrontage"
 train_[train_[col] < 80]["SalePrice"].mean()
 train_[train_[col] > 80]["SalePrice"].mean()
 
-
-
-
-
+plt.hist(train_["GrLivArea"])
+plt.hist(train_["TotalBsmtSF"])
+plt.hist(train_["LotArea"])
+plt.hist(train_["BsmtFinSF1"])
 #endregion
 
+#region Model Fitting
 print("# * ~ -- -- -- -- -- --{}-- -- -- -- -- -- ~ * #".format("CatBoost Raw Dataset"))
 CB_model = CatBoostRegressor(verbose=False)
 model_fit(CB_model, X_train, y_train)
@@ -245,10 +246,13 @@ model_fit(XGB_model, X_train, y_train)
 plot_importance(CB_model, X_train, num=25)
 
 plot_importance(LGBM_model, X_train, num=25)
+feature_imp = pd.DataFrame({"Value": LGBM_model.feature_importances_, "Feature": X_train.columns}).sort_values("Value", ascending=False)
+feature_imp.head(25)
 
 plot_importance(XGB_model, X_train, num=25)
+#endregion
 
-# Train-Test-Split
+#region Train-Test-Split
 Xtrain, Xtest, ytrain, ytest = train_test_split(X_train, y_train, test_size=0.2, random_state=42)
 
 print("# * ~ -- -- -- -- -- --{}-- -- -- -- -- -- ~ * #".format("CatBoost Train-Test-Split"))
@@ -281,7 +285,9 @@ plot_importance(CB_model, Xtrain, num=25)
 plot_importance(LGBM_model, Xtrain, num=25)
 
 plot_importance(XGB_model, Xtrain, num=25)
+#endregion Train-Test-Split
 
+#region CrossValidation
 # Cross Validation - Raw Dataset
 print("# * ~ -- -- -- -- -- --{}-- -- -- -- -- -- ~ * #".format("CatBoost Cross Validation"))
 CB_model = CatBoostRegressor(verbose=False)
@@ -307,8 +313,10 @@ print(np.mean(cross_val_score(LGBM_model, Xtrain, ytrain, cv=5)))
 print("# * ~ -- -- -- -- -- --{}-- -- -- -- -- -- ~ * #".format("XGBoost Cross Validation"))
 XGB_model = XGBRegressor()
 print(np.mean(cross_val_score(XGB_model, Xtrain, ytrain, cv=5)))
+#endregion
 
-## Export Submission ##
+#region Export Submission
+
 # Raw Dataset
 y_pred_test = XGB_model.predict(X_test)
 y_pred_test = pd.Series(y_pred_test)
@@ -319,7 +327,4 @@ y_pred_test = pd.Series(y_pred_test)
 
 sample_submission.loc[:, "SalePrice"] = y_pred_test
 sample_submission.to_csv("preds/pred5.csv", index=False)
-
-
-
-
+#endregion
