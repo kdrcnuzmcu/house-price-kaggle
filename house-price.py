@@ -98,7 +98,7 @@ def on_isleme(col, navalue=None, rare=None, scale=None):
         train[col] = train[col].fillna(navalue)
         test[col] = test[col].fillna(navalue)
         temp = categorical_value_counts(train, col, "SalePrice")
-        # cats = temp[temp["Ratio"] < rare][col]
+        cats = temp[temp["Ratio"] < rare][col]
         train.loc[train[col].isin(cats), col] = "RareCat"
         test.loc[test[col].isin(cats), col] = "RareCat"
 
@@ -209,24 +209,35 @@ y_train = train["SalePrice"]
 #endregion
 
 #region Preprocessing2
+train2 = train_[["GarageArea", "SalePrice"]]
+X = train2[["GarageArea"]]
+y = train2["SalePrice"]
+
+X["GarageLabels"] = pd.cut(X["GarageArea"], bins=[-1, 1, 350, 800, 1000, 1450], labels=[0, 1, 2, 3, 4])
+X = pd.get_dummies(data=X, columns=["GarageLabels"], drop_first=True)
+LGBM_model = LGBMRegressor()
+model_fit(LGBM_model, X, y)
+feature_imp = pd.DataFrame({"Value": LGBM_model.feature_importances_, "Feature": X.columns}).sort_values("Value", ascending=False)
 
 #endregion
 
 #region EDA
 
-col = "GrLivArea"
-train_[col].head(10)
-train_[col].describe()
-print(train_[col].isnull().sum(), "/", train_.shape[0])
+def kesif(col):
+    print(train_[col].head(10))
+    print(train_[col].describe())
+    print(train_[col].isnull().sum(), "/", train_.shape[0])
 
+kesif("GarageArea")
 col = "LotFrontage"
 train_[train_[col] < 80]["SalePrice"].mean()
 train_[train_[col] > 80]["SalePrice"].mean()
 
-plt.hist(train_["GrLivArea"])
-plt.hist(train_["TotalBsmtSF"])
-plt.hist(train_["LotArea"])
-plt.hist(train_["BsmtFinSF1"])
+kesif("GarageArea")
+train_["GarageArea"].plot.density(color="green")
+sns.histplot(X["GarageArea"], kde=True, bins=140)
+#plt.hist(train_["GarageArea"], bins=140, density=True)
+plt.show()
 #endregion
 
 #region Model Fitting
@@ -247,7 +258,7 @@ plot_importance(CB_model, X_train, num=25)
 
 plot_importance(LGBM_model, X_train, num=25)
 feature_imp = pd.DataFrame({"Value": LGBM_model.feature_importances_, "Feature": X_train.columns}).sort_values("Value", ascending=False)
-feature_imp.head(25)
+feature_imp.head()
 
 plot_importance(XGB_model, X_train, num=25)
 #endregion
