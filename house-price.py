@@ -19,7 +19,6 @@ from sklearn.model_selection import cross_val_score
 
 from typing import Optional
 
-# from ModuleWizard.module_wizard import PandasOptions
 # from ModuleWizard.helpers import HelperFunctions
 
 # pandasOptions = PandasOptions()
@@ -53,21 +52,18 @@ SAMPLES:
 {self.dataframe.sample(5)}
         """)
     def Variables(self):
-        from ModuleWizard.module_wizard import PandasOptions
-        PandasOptions().SetOptions(2)
         print(f"""
-INFO:
-{self.dataframe.info()}
-* * *
-
+{self.dataframe.info()} 
+* * * 
+      
 NUMBER OF NULLS:
-{self.dataframe.isnull().sum()}
-* * *
-
+{self.dataframe.isnull().sum()}        
+* * * 
+  
 NUMBER OF UNIQUES:
-{self.dataframe.nunique()}        
+{self.dataframe.nunique()}   
+* * *   
         """)
-        PandasOptions().ResetOptions(2)
     def GrabColNames(self, cat_th=10, car_th=20, verbose=False):
         cat_cols = [col for col in self.dataframe.columns if self.dataframe[col].dtypes == "O"]
         num_but_cat = [col for col in self.dataframe.columns if self.dataframe[col].nunique() < cat_th and self.dataframe[col].dtypes != "O"]
@@ -94,16 +90,16 @@ NUMBER OF UNIQUES:
                                                         Ratio=(col, lambda x: x.isnull().count() / len(self.dataframe)), \
                                                         Target_Ratio=(target, lambda x: x.sum() / self.dataframe[target].sum())) \
                                                     .sort_values("Count", ascending=False).reset_index()
-            if rare is not None:
-                rares = temp.loc[temp["Ratio"] <= float(rare), col].tolist()
-                self.dataframe.loc[self.dataframe[col].isin(rares), col] = "Rare Category"
-                print("---- Done! --- ")
-                print(self.dataframe.groupby(col).agg(Count=(col, lambda x: x.count()), \
-                                          Ratio=(col, lambda x: x.count() / len(self.dataframe)), \
-                                          Target_Ratio=(target, lambda x: x.sum() / self.dataframe[target].sum())) \
-                      .sort_values("Count", ascending=False).reset_index(), "\n")
-            else:
-                print(temp, "\n")
+        if rare is not None:
+            rares = temp.loc[temp["Ratio"] <= float(rare), col].tolist()
+            self.dataframe.loc[self.dataframe[col].isin(rares), col] = "Rare Category"
+            print("---- Done! --- ")
+            print(self.dataframe.groupby(col).agg(Count=(col, lambda x: x.count()), \
+                                      Ratio=(col, lambda x: x.count() / len(self.dataframe)), \
+                                      Target_Ratio=(target, lambda x: x.sum() / self.dataframe[target].sum())) \
+                  .sort_values("Count", ascending=False).reset_index(), "\n")
+        else:
+            print(temp, "\n")
     def Outliers(self, col, low_Quantile=0.25, high_Quantile=0.75, adjust=False):
         Q1 = self.dataframe[col].quantile(low_Quantile)
         Q3 = self.dataframe[col].quantile(high_Quantile)
@@ -120,12 +116,25 @@ NUMBER OF UNIQUES:
             self.dataframe.loc[(self.dataframe[col] < low_Limit), col] = low_Limit
             self.dataframe.loc[(self.dataframe[col] > up_Limit), col] = up_Limit
             print(f"{col}: Done!")
+    def ExtractFromDatetime(self, col):
+        self.dataframe[col] = pd.to_datetime(self.dataframe[col])
+        self.dataframe["YEAR"] = self.dataframe[col].dt.year
+        self.dataframe["MONTH"] = self.dataframe[col].dt.month
+        self.dataframe["DAY"] = self.dataframe[col].dt.day
+        self.dataframe["DAYOFWEEK"] = self.dataframe[col].dt.dayofweek + 1
+        self.dataframe["HOUR"] = self.dataframe[col].dt.hour
+        self.dataframe["WEEK"] = self.dataframe[col].dt.isocalendar().week
 
-helper = HelperFunctions(train_)
-helper.QuickView()
-helper.Variables()
-helper.CategoricalByTarget("SaleCondition", "SalePrice")
-helper.CategoricalsByTarget("SalePrice")
+from ModuleWizard.module_wizard import PandasOptions
+PandasOptions().PrintOptions()
+PandasOptions().SetOptions(1, 4, 2)
+
+HelperFunctions(train_).QuickView()
+HelperFunctions(train_).Variables()
+HelperFunctions(train_).CategoricalsByTarget("GarageType", "SalePrice")
+HelperFunctions(train_).Outliers("LotArea")
+
+train_.info
 
 #region Fonksiyonlar
 def grab_col_names(df, cat_th=10, car_th=20):
