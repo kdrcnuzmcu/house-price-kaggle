@@ -1,39 +1,44 @@
+#region Imports
+# Basics
+import pandas as pd
 import numpy as np
-
 import matplotlib.pyplot as plt
 import seaborn as sns
-from qbstyles import mpl_style
-
+# sklearn.preprocessing
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder
+from sklearn.preprocessing import StandardScaler, RobustScaler, MinMaxScaler
+# sklearn.model_selection
+from sklearn.model_selection import train_test_split, TimeSeriesSplit
+from sklearn.model_selection import GridSearchCV, RandomizedSearchCV, cross_val_score
+# sklearn.linear_model
+from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet
+# sklearn.metrics
+from sklearn.metrics import mean_squared_error, mean_absolute_error, mean_absolute_percentage_error
+# Tree Regression Models
 from catboost import CatBoostRegressor
 from lightgbm import LGBMRegressor
 from xgboost import XGBRegressor
-
-from sklearn.preprocessing import RobustScaler
-
-from sklearn.metrics import mean_absolute_percentage_error
-from sklearn.metrics import mean_absolute_error
-from sklearn.metrics import mean_squared_error
-
-from sklearn.model_selection import train_test_split
-from sklearn.model_selection import cross_val_score
-
+# Tree Classification Models
+from catboost import CatBoostClassifier
+from lightgbm import LGBMClassifier
+from xgboost import XGBClassifier
+# Others
+from qbstyles import mpl_style
 from typing import Optional
+from ModuleWizard.module_wizard import PandasOptions
+#endregion
 
-# from ModuleWizard.helpers import HelperFunctions
-
-# pandasOptions = PandasOptions()
-# pandasOptions.PrintOptions()
-# pandasOptions.SetOptions(1, 4)
-
-import pandas as pd
 train_ = pd.read_csv(r"C:\Users\kdrcn\OneDrive\Masaüstü\Py\House-Price\train.csv")
 test_ = pd.read_csv(r"C:\Users\kdrcn\OneDrive\Masaüstü\Py\House-Price\test.csv")
 sample_submission = pd.read_csv(r"C:\Users\kdrcn\OneDrive\Masaüstü\Py\House-Price\sample_submission.csv")
 
+
+#region Fonksiyonlar
 class HelperFunctions():
     from typing import Optional
     def __init__(self, dataframe):
         self.dataframe = dataframe
+
     def QuickView(self):
         print(f"""
 Rows: {self.dataframe.shape[0]}
@@ -51,23 +56,27 @@ TAIL:
 SAMPLES:
 {self.dataframe.sample(5)}
         """)
+
     def Variables(self):
         print(f"""
 {self.dataframe.info()} 
 * * * 
-      
+
 NUMBER OF NULLS:
 {self.dataframe.isnull().sum()}        
 * * * 
-  
+
 NUMBER OF UNIQUES:
 {self.dataframe.nunique()}   
 * * *   
         """)
+
     def GrabColNames(self, cat_th=10, car_th=20, verbose=False):
         cat_cols = [col for col in self.dataframe.columns if self.dataframe[col].dtypes == "O"]
-        num_but_cat = [col for col in self.dataframe.columns if self.dataframe[col].nunique() < cat_th and self.dataframe[col].dtypes != "O"]
-        cat_but_car = [col for col in self.dataframe.columns if self.dataframe[col].nunique() > car_th and self.dataframe[col].dtypes == "O"]
+        num_but_cat = [col for col in self.dataframe.columns if
+                       self.dataframe[col].nunique() < cat_th and self.dataframe[col].dtypes != "O"]
+        cat_but_car = [col for col in self.dataframe.columns if
+                       self.dataframe[col].nunique() > car_th and self.dataframe[col].dtypes == "O"]
         cat_cols = cat_cols + num_but_cat
         cat_cols = [col for col in cat_cols if col not in cat_but_car]
 
@@ -85,21 +94,26 @@ NUMBER OF UNIQUES:
             print(f'num_but_cat: {len(num_but_cat)}')
 
         return cat_cols, cat_but_car, num_cols
+
     def CategoricalsByTarget(self, col, target, rare: Optional[float] = None):
         temp = self.dataframe.groupby(col, dropna=False).agg(Count=(col, lambda x: x.isnull().count()), \
-                                                        Ratio=(col, lambda x: x.isnull().count() / len(self.dataframe)), \
-                                                        Target_Ratio=(target, lambda x: x.sum() / self.dataframe[target].sum())) \
-                                                    .sort_values("Count", ascending=False).reset_index()
+                                                             Ratio=(
+                                                             col, lambda x: x.isnull().count() / len(self.dataframe)), \
+                                                             Target_Ratio=(
+                                                             target, lambda x: x.sum() / self.dataframe[target].sum())) \
+            .sort_values("Count", ascending=False).reset_index()
         if rare is not None:
             rares = temp.loc[temp["Ratio"] <= float(rare), col].tolist()
             self.dataframe.loc[self.dataframe[col].isin(rares), col] = "Rare Category"
             print("---- Done! --- ")
             print(self.dataframe.groupby(col).agg(Count=(col, lambda x: x.count()), \
-                                      Ratio=(col, lambda x: x.count() / len(self.dataframe)), \
-                                      Target_Ratio=(target, lambda x: x.sum() / self.dataframe[target].sum())) \
+                                                  Ratio=(col, lambda x: x.count() / len(self.dataframe)), \
+                                                  Target_Ratio=(
+                                                  target, lambda x: x.sum() / self.dataframe[target].sum())) \
                   .sort_values("Count", ascending=False).reset_index(), "\n")
         else:
             print(temp, "\n")
+
     def Outliers(self, col, low_Quantile=0.25, high_Quantile=0.75, adjust=False):
         Q1 = self.dataframe[col].quantile(low_Quantile)
         Q3 = self.dataframe[col].quantile(high_Quantile)
@@ -116,82 +130,51 @@ NUMBER OF UNIQUES:
             self.dataframe.loc[(self.dataframe[col] < low_Limit), col] = low_Limit
             self.dataframe.loc[(self.dataframe[col] > up_Limit), col] = up_Limit
             print(f"{col}: Done!")
-    def ExtractFromDatetime(self, col):
+
+    def ExtractFromDatetime(self, col, year=True, month=True, day=True, hour=False, week=False, dayofweek=False, names=False):
         self.dataframe[col] = pd.to_datetime(self.dataframe[col])
-        self.dataframe["YEAR"] = self.dataframe[col].dt.year
-        self.dataframe["MONTH"] = self.dataframe[col].dt.month
-        self.dataframe["DAY"] = self.dataframe[col].dt.day
-        self.dataframe["DAYOFWEEK"] = self.dataframe[col].dt.dayofweek + 1
-        self.dataframe["HOUR"] = self.dataframe[col].dt.hour
-        self.dataframe["WEEK"] = self.dataframe[col].dt.isocalendar().week
+        if year:
+            self.dataframe["YEAR"] = self.dataframe[col].dt.year
+        if month:
+            if names:
+                self.dataframe["MONTH_NAME"] = self.dataframe[col].dt.month_name()
+            else:
+                self.dataframe["MONTH"] = self.dataframe[col].dt.month
+        if day:
+            self.dataframe["DAY"] = self.dataframe[col].dt.day
+        if hour:
+            self.dataframe["HOUR"] = self.dataframe[col].dt.hour
+        if week:
+            self.dataframe["WEEK"] = self.dataframe[col].dt.isocalendar().week
+        if dayofweek:
+            if names:
+                self.dataframe["DAYOFWEEK_NAME"] = self.dataframe[col].dt.day_name()
+            else:
+                self.dataframe["DAYOFWEEK"] = self.dataframe[col].dt.dayofweek + 1
 
-from ModuleWizard.module_wizard import PandasOptions
-PandasOptions().PrintOptions()
-PandasOptions().SetOptions(1, 4, 2)
+    def Errors(self, y_true, y_pred):
+        print("MAPE:", mean_absolute_percentage_error(y_true, y_pred))
+        print("MAE:", mean_absolute_error(y_true, y_pred))
+        print("RMSE:", mean_squared_error(y_true, y_pred, squared=False))
 
-HelperFunctions(train_).QuickView()
-HelperFunctions(train_).Variables()
-HelperFunctions(train_).CategoricalsByTarget("GarageType", "SalePrice")
-HelperFunctions(train_).Outliers("LotArea")
+    def FitModel(self, estimator, X, y, tag="Train"):
+        print(f"# * ~  -- * -- --{estimator.__class__.__name__}-- -- * -- ~ * #")
+        model = estimator.fit(X, y)
+        print("Train Score:", model.score(X, y))
+        y_pred = model.predict(X)
+        print(f"# * ~  -- --{tag} Dataset-- -- ~ * #")
+        self.Errors(y, y_pred)
 
-train_.info
-
-#region Fonksiyonlar
-def grab_col_names(df, cat_th=10, car_th=20):
-
-    # Categorical Columns
-    cat_cols = [col for col in df.columns if df[col].dtypes == "O"]
-    num_but_cat = [col for col in df.columns if df[col].nunique() < cat_th and df[col].dtypes != "O"]
-    cat_but_car = [col for col in df.columns if df[col].nunique() > car_th and df[col].dtypes == "O"]
-    cat_cols = cat_cols + num_but_cat
-    cat_cols = [col for col in cat_cols if col not in cat_but_car]
-
-    # Numerical Columns
-    num_cols = [col for col in df.columns if df[col].dtypes != "O"]
-    num_cols = [col for col in num_cols if col not in num_but_cat]
-
-    # Results
-    print(f"Observations: {df.shape[0]}")
-    print(f"Variables: {df.shape[1]}")
-    print(f'cat_cols: {len(cat_cols)}')
-    print(f'num_cols: {len(num_cols)}')
-    print(f'cat_but_car: {len(cat_but_car)}')
-    print(f'num_but_cat: {len(num_but_cat)}')
-
-    return cat_cols, cat_but_car, num_cols
-
-def categorical_value_counts(df, col, target: None, rare: Optional[float] = None):
-    temp = df.groupby(col, dropna=False).agg(Count=(col, lambda x: x.isnull().count()), \
-                               Ratio=(col, lambda x: x.isnull().count() / len(df)), \
-                               Target_Ratio=(target, lambda x: x.sum() / df[target].sum())) \
-        .sort_values("Count", ascending=False).reset_index()
-
-    if rare is not None:
-        rares = temp.loc[temp["Ratio"] <= float(rare), col].tolist()
-        df.loc[df[col].isin(rares), col] = "Rare Category"
-        print("---- Done! --- ")
-        temp = df.groupby(col).agg(Count=(col, lambda x: x.isnull().count()), \
-                                  Ratio=(col, lambda x: x.count() / len(df)), \
-                                  Target_Ratio=(target, lambda x: x.sum() / df[target].sum())) \
-              .sort_values("Count", ascending=False).reset_index()
-    return temp
-
-def outliers(df, col, low_Quantile=0.25, high_Quantile=0.75, adjust=False):
-    Q1 = df[col].quantile(low_Quantile)
-    Q3 = df[col].quantile(high_Quantile)
-    IQR = Q3 - Q1
-    low_Limit = Q1 - (1.5 * IQR)
-    up_Limit = Q3 + (1.5 * IQR)
-
-    if len(df[df[col] > up_Limit]) > 0:
-        print(col, ": Higher Outlier!")
-    if len(df[df[col] < low_Limit]) > 0:
-        print(col, ": Lower Outlier!")
-
-    if adjust:
-        df.loc[(df[col] < low_Limit), col] = low_Limit
-        df.loc[(df[col] > up_Limit), col] = up_Limit
-        print(col, ": Done!")
+    def FeatureImportance(self, model, features, num=10):
+        mpl_style(dark=True)
+        FI = pd.DataFrame({"Value": model.feature_importances_, "Feature": features.columns})
+        plt.figure(num=f"{model.__class__.__name__}", figsize=(10, 10))
+        sns.set(font_scale=1)
+        sns.barplot(x="Value", y="Feature", data=FI.sort_values(by="Value", ascending=False)[0:num])
+        plt.title("Features")
+        plt.tight_layout()
+        plt.get_current_fig_manager()
+        plt.show()
 
 def on_isleme(col, navalue=None, rare=None, scale=None):
     if train[col].dtype == "int64":
@@ -211,34 +194,19 @@ def on_isleme(col, navalue=None, rare=None, scale=None):
         train.loc[train[col].isin(cats), col] = "RareCat"
         test.loc[test[col].isin(cats), col] = "RareCat"
 
-def plot_importance(model, features, num = 3):
-    mpl_style(dark=True)
-    feature_imp = pd.DataFrame({"Value": model.feature_importances_, "Feature": features.columns})
-    plt.figure(num="{}".format(model.__class__.__name__), figsize=(10, 10))
-    sns.set(font_scale=1)
-    sns.barplot(x="Value", y="Feature", data=feature_imp.sort_values(by="Value", ascending=False)[0:num])
-    plt.title("Features")
-    plt.tight_layout()
-    plt.get_current_fig_manager()
-    plt.show()
-
-def model_fit(estimator, X, y, tag="Train"):
-    print("# * ~  -- * -- --{}-- -- * -- ~ * #".format(estimator.__class__.__name__))
-    model = estimator.fit(X, y)
-    print("Train Score:", model.score(X, y))
-    y_pred = model.predict(X)
-    print("# * ~  -- --{} Dataset-- -- ~ * #".format(tag))
-    metriks(y, y_pred)
-
-def metriks(y_true, y_pred):
-    from sklearn.metrics import mean_absolute_percentage_error
-    from sklearn.metrics import mean_absolute_error
-    from sklearn.metrics import mean_squared_error
-    print("MAPE:", mean_absolute_percentage_error(y_true, y_pred))
-    print("MAE:", mean_absolute_error(y_true, y_pred))
-    print("RMSE:", mean_squared_error(y_true, y_pred, squared=False))
-
 #endregion
+
+
+PandasOptions().PrintOptions()
+PandasOptions().SetOptions(1, 4, 2)
+
+HelperFunctions(train_).QuickView()
+HelperFunctions(train_).Variables()
+HelperFunctions(train_).CategoricalsByTarget("GarageType", "SalePrice")
+HelperFunctions(train_).Outliers("LotArea")
+
+train_.info
+
 
 train = train_.copy()
 test = test_.copy()
@@ -410,7 +378,7 @@ plot_importance(XGB_model, Xtrain, num=25)
 #region CrossValidation
 # Cross Validation - Raw Dataset
 print("# * ~ -- -- -- -- -- --{}-- -- -- -- -- -- ~ * #".format("CatBoost Cross Validation"))
-CB_model = CatBoostRegressor(verbose=False)
+CB_model = CBRegressor
 print(np.mean(cross_val_score(CB_model, X_train, y_train, cv=5)))
 
 print("# * ~ -- -- -- -- -- --{}-- -- -- -- -- -- ~ * #".format("LightGBM Cross Validation"))
